@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Clock,
   ExternalLink,
+  Trophy,
 } from "lucide-react";
 
 interface StudentResult {

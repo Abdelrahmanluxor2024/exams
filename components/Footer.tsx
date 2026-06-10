@@ -17,7 +17,7 @@ export default function Footer() {
             <p className="text-slate-300 text-sm leading-relaxed max-w-sm">
               مدرس التاريخ الوطني للصف الثاني الثانوي. نسعى لبناء جيل من المتفوقين والرواد من خلال شرح مبسط، اختبارات تفاعلية، ومتابعة دقيقة لكل طالب.
             </p>
-            <span className="inline-block text-accent font-extrabold text-lg">"معاً نحو تفوقك"</span>
+            <span className="inline-block text-accent font-extrabold text-lg">&quot;معاً نحو تفوقك&quot;</span>
           </div>
 
           {/* Quick Links */}
