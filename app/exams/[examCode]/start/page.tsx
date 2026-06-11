@@ -16,7 +16,7 @@ export default async function StartExamPage({ params }: StartPageProps) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  // Fetch the exam
+  // تحميل بيانات الامتحان
   const { data: exam, error: examError } = await supabase
     .from("exams")
     .select("*")
@@ -27,7 +27,7 @@ export default async function StartExamPage({ params }: StartPageProps) {
     return notFound();
   }
 
-  // Fetch questions for this exam
+  // تحميل الأسئلة مرتبة حسب رقمها
   const { data: questions, error: questionsError } = await supabase
     .from("questions")
     .select("*")
@@ -43,5 +43,18 @@ export default async function StartExamPage({ params }: StartPageProps) {
     );
   }
 
-  return <ExamClientInterface exam={exam} questions={questions} />;
+  // [جديد] تحميل الحوارات/القطع المرتبطة بالامتحان
+  const { data: passages } = await supabase
+    .from("passages")
+    .select("*")
+    .eq("exam_id", exam.id)
+    .order("passage_order", { ascending: true });
+
+  return (
+    <ExamClientInterface
+      exam={exam}
+      questions={questions}
+      passages={passages || []}
+    />
+  );
 }

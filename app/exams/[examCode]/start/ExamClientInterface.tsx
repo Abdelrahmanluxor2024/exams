@@ -13,16 +13,36 @@ import {
   ClipboardList,
   CheckCircle,
   HelpCircle,
+  MessageSquare,
 } from "lucide-react";
+
+// ===== أنواع البيانات =====
 
 interface Question {
   id: string;
   question_number: number;
   question_text: string;
+  question_instruction?: string;
   option_a: string;
   option_b: string;
   option_c: string;
-  option_d: string;
+  option_d?: string;   // اختياري
+  option_e?: string;   // اختياري
+  options_count: number;       // 3 أو 4 أو 5
+  correct_answers: string;     // 'a' أو 'b,e'
+  answers_count: number;       // 1 أو 2
+  passage_id?: string | null;  // ID الحوار المرتبط
+}
+
+// [جديد] نوع بيانات الحوار
+interface Passage {
+  id: string;
+  exam_id: string;
+  passage_order: number;
+  passage_title?: string;
+  passage_instruction?: string;
+  passage_content: string;
+  passage_type: "dialogue" | "text" | "email" | "letter" | "table" | "other";
 }
 
 interface Exam {
@@ -36,14 +56,21 @@ interface Exam {
 interface ExamClientInterfaceProps {
   exam: Exam;
   questions: Question[];
+  passages: Passage[]; // [جديد] قائمة الحوارات
 }
 
-export default function ExamClientInterface({ exam, questions }: ExamClientInterfaceProps) {
+export default function ExamClientInterface({
+  exam,
+  questions,
+  passages,
+}: ExamClientInterfaceProps) {
   const router = useRouter();
   const [studentName, setStudentName] = useState<string | null>(null);
   const [studentPhone, setStudentPhone] = useState("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  // [محدّث] الإجابات: كل سؤال يخزن string (إجابة واحدة) أو string[] (إجابتين)
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -51,7 +78,12 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
   const totalQuestions = questions.length;
   const currentQuestion = questions[currentQuestionIndex];
 
-  // 1. Authenticate student details on mount
+  // [جديد] نبحث عن الحوار المرتبط بالسؤال الحالي
+  const currentPassage = currentQuestion?.passage_id
+    ? passages.find((p) => p.id === currentQuestion.passage_id) || null
+    : null;
+
+  // 1. التحقق من بيانات الطالب
   useEffect(() => {
     const name = sessionStorage.getItem("student_name");
     const phone = sessionStorage.getItem("student_phone") || "";
@@ -64,7 +96,7 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
     }
   }, [exam.exam_code, router]);
 
-  // 2. Load answers from localStorage on mount
+  // 2. تحميل الإجابات المحفوظة من localStorage
   useEffect(() => {
     const savedAnswers = localStorage.getItem(`answers_${exam.id}`);
     if (savedAnswers) {
@@ -76,14 +108,15 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
     }
   }, [exam.id]);
 
-  // 3. Save answers to localStorage on change
-  const handleSelectAnswer = (answer: string) => {
+  // 3. حفظ الإجابات عند التغيير
+  // [محدّث] يدعم الآن إجابة واحدة أو إجابتين
+  const handleSelectAnswer = (answer: string | string[]) => {
     const updatedAnswers = { ...answers, [currentQuestion.id]: answer };
     setAnswers(updatedAnswers);
     localStorage.setItem(`answers_${exam.id}`, JSON.stringify(updatedAnswers));
   };
 
-  // 4. Handle exit warnings
+  // 4. تحذير عند إغلاق المتصفح
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -93,25 +126,22 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
-  // 5. Submit Exam Handler
+  // 5. تسليم الامتحان
   const handleSubmitExam = async () => {
     setIsSubmitting(true);
     setSubmitError("");
 
-    // Calculate time taken
     let timeTaken = exam.duration_minutes * 60;
     const remainingTimeStr = localStorage.getItem(`timer_left_exam_${exam.id}`);
     if (remainingTimeStr) {
       const remainingSeconds = parseInt(remainingTimeStr, 10);
-      timeTaken = (exam.duration_minutes * 60) - remainingSeconds;
+      timeTaken = exam.duration_minutes * 60 - remainingSeconds;
     }
 
     try {
       const response = await fetch("/api/submit-exam", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           student_name: studentName,
           student_phone: studentPhone,
@@ -126,39 +156,37 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
       const result = await response.json();
 
       if (result.success) {
-        // Clear exam storage
         localStorage.removeItem(`answers_${exam.id}`);
         localStorage.removeItem(`timer_left_exam_${exam.id}`);
-
-        // Save result object to sessionStorage to show instantly or fallback to DB
         sessionStorage.setItem(`result_${exam.id}`, JSON.stringify(result.result));
-
-        // Redirect to results page
         router.push(`/exams/${exam.exam_code}/result?resultId=${result.result.id}`);
       } else {
         throw new Error(result.error || "خطأ غير معروف");
       }
     } catch (err: any) {
       console.error("Submission failed:", err);
-      setSubmitError(err.message || "فشل تسليم الامتحان. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.");
+      setSubmitError(
+        err.message || "فشل تسليم الامتحان. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى."
+      );
       setIsSubmitting(false);
     }
   };
 
-  // 6. Navigation
+  // 6. التنقل بين الأسئلة
   const handlePrev = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex((prev) => prev - 1);
-    }
+    if (currentQuestionIndex > 0) setCurrentQuestionIndex((prev) => prev - 1);
   };
 
   const handleNext = () => {
-    if (currentQuestionIndex < totalQuestions - 1) {
+    if (currentQuestionIndex < totalQuestions - 1)
       setCurrentQuestionIndex((prev) => prev + 1);
-    }
   };
 
-  const answeredCount = Object.keys(answers).length;
+  // [محدّث] حساب الأسئلة المجابة (يدعم إجابة واحدة أو مصفوفة)
+  const answeredCount = Object.values(answers).filter((ans) => {
+    if (Array.isArray(ans)) return ans.length > 0;
+    return ans !== undefined && ans !== "";
+  }).length;
 
   if (!studentName) {
     return (
@@ -171,7 +199,7 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
   return (
     <div className="py-8 bg-slate-50 min-h-[calc(100vh-250px)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Top Header Card */}
+        {/* رأس الصفحة */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4 text-right">
             <div className="p-3 bg-primary/5 text-primary rounded-2xl flex-shrink-0">
@@ -184,7 +212,6 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
               </p>
             </div>
           </div>
-
           <div className="flex items-center gap-4">
             <ExamTimer
               durationMinutes={exam.duration_minutes}
@@ -194,9 +221,9 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
           </div>
         </div>
 
-        {/* Main Interface Layout */}
+        {/* التخطيط الرئيسي */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar (Right side in RTL) */}
+          {/* الشريط الجانبي - التنقل بين الأسئلة */}
           <div className="lg:col-span-1 order-last lg:order-first">
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sticky top-28">
               <h3 className="text-base font-extrabold text-primary mb-4 text-center">
@@ -206,7 +233,10 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
               <div className="grid grid-cols-5 gap-2.5">
                 {questions.map((q, idx) => {
                   const isCurrent = idx === currentQuestionIndex;
-                  const isAnswered = answers[q.id] !== undefined;
+                  const ans = answers[q.id];
+                  const isAnswered = Array.isArray(ans)
+                    ? ans.length > 0
+                    : ans !== undefined && ans !== "";
 
                   let btnStyle = "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200";
                   if (isCurrent) {
@@ -245,17 +275,23 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
             </div>
           </div>
 
-          {/* Question Display & Controls (Left side in RTL) */}
+          {/* منطقة السؤال الرئيسية */}
           <div className="lg:col-span-3 space-y-6">
             <ProgressBar current={answeredCount} total={totalQuestions} />
 
+            {/* [جديد] عرض الحوار إذا كان السؤال مرتبطاً بحوار */}
+            {currentPassage && (
+              <PassageDisplay passage={currentPassage} />
+            )}
+
+            {/* عرض السؤال */}
             <QuestionDisplay
               question={currentQuestion}
               selectedAnswer={answers[currentQuestion.id]}
               onSelectAnswer={handleSelectAnswer}
             />
 
-            {/* Pagination Controls */}
+            {/* أزرار التنقل */}
             <div className="flex items-center justify-between bg-white border border-slate-100 rounded-3xl p-4 shadow-sm">
               <button
                 onClick={handlePrev}
@@ -288,11 +324,10 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
         </div>
       </div>
 
-      {/* Confirmation Modal */}
+      {/* مودال تأكيد التسليم */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-md w-full border border-slate-100 shadow-2xl p-8 relative overflow-hidden">
-            {/* Warning Icon Banner */}
             <div className="flex items-center justify-center mb-6">
               <div className="p-4 rounded-full bg-orange-50 text-accent">
                 <AlertTriangle className="h-10 w-10 animate-bounce" />
@@ -307,6 +342,12 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
               أصل <span className="text-primary font-black">{totalQuestions}</span>. يرجى مراجعة إجاباتك
               قبل التأكيد، فلن تتمكن من تعديل الإجابات بعد التسليم.
             </p>
+
+            {totalQuestions - answeredCount > 0 && (
+              <div className="bg-orange-50 border border-orange-200 text-orange-700 p-3 rounded-xl text-xs font-bold mb-4 text-center">
+                ⚠️ يوجد {totalQuestions - answeredCount} سؤال لم تتم الإجابة عليه - ستُحسب خطأ تلقائياً
+              </div>
+            )}
 
             {submitError && (
               <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-xs font-semibold mb-6">
@@ -333,6 +374,63 @@ export default function ExamClientInterface({ exam, questions }: ExamClientInter
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// =============================================
+// [جديد] مكوّن عرض الحوار / القطعة
+// =============================================
+function PassageDisplay({ passage }: { passage: Passage }) {
+  // أيقونة حسب نوع المحتوى
+  const typeLabels: Record<string, string> = {
+    dialogue: "حوار",
+    text: "نص",
+    email: "بريد إلكتروني",
+    letter: "رسالة",
+    table: "جدول",
+    other: "نص",
+  };
+
+  const typeColors: Record<string, string> = {
+    dialogue: "bg-blue-50 border-blue-200 text-blue-800",
+    text: "bg-slate-50 border-slate-200 text-slate-800",
+    email: "bg-purple-50 border-purple-200 text-purple-800",
+    letter: "bg-green-50 border-green-200 text-green-800",
+    table: "bg-yellow-50 border-yellow-200 text-yellow-800",
+    other: "bg-slate-50 border-slate-200 text-slate-800",
+  };
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* رأس الحوار */}
+      <div className="bg-slate-800 px-6 py-4 flex items-center gap-3">
+        <div className="p-2 bg-white/10 rounded-xl">
+          <MessageSquare className="h-5 w-5 text-white" />
+        </div>
+        <div className="flex-1">
+          {passage.passage_title && (
+            <h3 className="text-white font-black text-base">{passage.passage_title}</h3>
+          )}
+          <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full mt-1 ${typeColors[passage.passage_type]}`}>
+            {typeLabels[passage.passage_type]}
+          </span>
+        </div>
+      </div>
+
+      {/* التعليمة */}
+      {passage.passage_instruction && (
+        <div className="px-6 py-3 bg-accent/5 border-b border-slate-100">
+          <p className="text-sm font-bold text-accent italic">{passage.passage_instruction}</p>
+        </div>
+      )}
+
+      {/* محتوى الحوار/النص */}
+      <div className="p-6">
+        <pre className="whitespace-pre-wrap font-sans text-sm sm:text-base text-slate-700 leading-relaxed ltr text-left">
+          {passage.passage_content}
+        </pre>
+      </div>
     </div>
   );
 }
