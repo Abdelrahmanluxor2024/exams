@@ -45,7 +45,7 @@ export default function HeroSection() {
               </div>
 
               <h1 className="text-4xl sm:text-6xl font-black tracking-tight mb-4 leading-tight">
-                يعلن المسيو / <span className="text-accent">محمد فهمي سليم</span>
+                المسيو / <span className="text-accent">محمد فهمي سليم</span>
               </h1>
               <p className="text-xl sm:text-3xl font-extrabold text-slate-200 mb-6">
                 خبير اللغة الفرنسية للمرحلة الثانوية
