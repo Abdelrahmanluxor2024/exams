@@ -103,7 +103,7 @@ export default async function ExamEntryPage({ params }: ExamPageProps) {
             <h3 className="text-center text-lg font-extrabold text-primary mb-6">
               سجل بياناتك للبدء بالامتحان
             </h3>
-            <StudentNameForm examCode={exam.exam_code} examTitle={exam.title} />
+            <StudentNameForm examCode={exam.exam_code} examTitle={exam.title} examPassword={exam.exam_password || ""} />
           </div>
         </div>
       </div>

@@ -14,6 +14,7 @@ CREATE TABLE exams (
   duration_minutes INT DEFAULT 30,
   total_questions INT NOT NULL,
   is_active BOOLEAN DEFAULT true,
+  exam_password TEXT DEFAULT '',  -- [جديد] كود/باسورد الامتحان الذي يدخله الطالب
   created_at TIMESTAMP DEFAULT NOW()
 );
 
