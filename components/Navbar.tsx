@@ -34,10 +34,10 @@ export default function Navbar() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl sm:text-2xl font-black text-primary tracking-tight">
-                  أ. أبو الفتيان فهمي
+                  المسيو محمد فهمي سليم
                 </span>
                 <span className="text-xs font-medium text-accent -mt-1">
-                  معاً نحو تفوقك
+                  Excellence متعة التعلم
                 </span>
               </div>
             </Link>
@@ -63,7 +63,7 @@ export default function Navbar() {
             ))}
             
             <a
-              href="https://wa.me/201050074058"
+              href="https://wa.me/201027340063"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 bg-accent hover:bg-accent-dark text-white px-5 py-2.5 rounded-xl font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
@@ -108,7 +108,7 @@ export default function Navbar() {
             ))}
             <div className="pt-2 px-4">
               <a
-                href="https://wa.me/201050074058"
+                href="https://wa.me/201027340063"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setIsOpen(false)}

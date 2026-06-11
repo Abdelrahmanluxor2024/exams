@@ -141,7 +141,7 @@ export default function ResultSummary({ result }: ResultSummaryProps) {
 
   // 6. Share to WhatsApp
   const handleShareWhatsApp = () => {
-    const text = `الحمد لله، حصلت على درجة ${result.correct_answers}/${result.total_questions} بنسبة مئوية ${Math.round(result.score_percentage)}% في امتحان "${result.exam_title}" مع الأستاذ أبو الفتيان فهمي. 🎓🔥`;
+    const text = `الحمد لله، حصلت على درجة ${result.correct_answers}/${result.total_questions} بنسبة مئوية ${Math.round(result.score_percentage)}% في امتحان "${result.exam_title}" مع المسيو محمد فهمي سليم. 🎓🔥`;
     const encodedText = encodeURIComponent(text);
     window.open(`https://wa.me/?text=${encodedText}`, "_blank");
   };
@@ -163,10 +163,10 @@ export default function ResultSummary({ result }: ResultSummaryProps) {
               <Trophy className="h-10 w-10" />
             </div>
             <h2 className="text-3xl font-black text-primary tracking-wide">شهادة تفوق وتقدير</h2>
-            <p className="text-slate-500 font-bold mt-1 text-sm">تمنح منصة الأستاذ أبو الفتيان فهمي هذه الشهادة للطالب المتميز</p>
+            <p className="text-slate-500 font-bold mt-1 text-sm">تمنح منصة المسيو محمد فهمي سليم هذه الشهادة للطالب المتميز</p>
             <p className="text-2xl font-black text-accent-dark my-4 select-all">{result.student_name}</p>
             <p className="text-slate-600 font-bold max-w-md mx-auto text-sm leading-relaxed">
-              لتفوقه ونجاحه الباهر في اجتياز امتحان التاريخ الوطني بنسبة نجاح بلغت {" "}
+              لتفوقه ونجاحه الباهر في اجتياز امتحان اللغة الفرنسية بنسبة نجاح بلغت {" "}
               <span className="text-accent text-lg font-black">{Math.round(result.score_percentage)}%</span>. متمنين له دوام التقدم والنجاح.
             </p>
           </div>

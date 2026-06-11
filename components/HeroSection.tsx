@@ -6,12 +6,12 @@ export default function HeroSection() {
     {
       icon: <Award className="h-8 w-8 text-accent" />,
       title: "خبرة في التدريس",
-      description: "سنوات من العطاء وبناء عقول الطلاب المتميزة وتدريس المنهج الوطني.",
+      description: "سنوات من العطاء وبناء عقول الطلاب المتميزة وتدريس منهج اللغة الفرنسية.",
     },
     {
       icon: <BookOpenCheck className="h-8 w-8 text-accent" />,
       title: "متابعة دورية واختبارات",
-      description: "امتحانات تفاعلية مستمرة لتقييم الفهم وحفظ التواريخ والأحداث التاريخية.",
+      description: "امتحانات تفاعلية مستمرة لتقييم الفهم وحصيلة المفردات والقواعد اللغوية.",
     },
     {
       icon: <BookOpen className="h-8 w-8 text-accent" />,
@@ -21,7 +21,7 @@ export default function HeroSection() {
     {
       icon: <Users className="h-8 w-8 text-accent" />,
       title: "شرح مبسط ومنظم",
-      description: "ربط الأحداث التاريخية وتحليل أسبابها ونتائجها بأسلوب ممتع وسهل الاستيعاب.",
+      description: "شرح مبسط للقواعد وتطبيقات عملية للنطق والمحادثة بأسلوب ممتع وسهل الاستيعاب.",
     },
   ];
 
@@ -41,15 +41,15 @@ export default function HeroSection() {
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-black tracking-tight mb-4 leading-tight">
-            يعلن أ / <span className="text-accent">أبو الفتيان فهمي</span>
+            يعلن المسيو / <span className="text-accent">محمد فهمي سليم</span>
           </h1>
           <p className="text-xl sm:text-3xl font-extrabold text-slate-200 mb-6">
-            مدرس التاريخ الوطني - للصف الثاني الثانوي
+            خبير اللغة الفرنسية للمرحلة الثانوية
           </p>
 
           <p className="max-w-2xl mx-auto text-slate-300 text-base sm:text-lg mb-10 leading-relaxed">
             مرحباً بكم في المنصة التفاعلية الرسمية. نقدم لكم تجربة تعليمية متميزة وفريدة
-            تساعدكم على استيعاب منهج التاريخ الوطني وحل الأسئلة والامتحانات بسهولة ويُسر.
+            تساعدكم على استيعاب منهج اللغة الفرنسية وحل الأسئلة والامتحانات بسهولة ويُسر.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -62,7 +62,7 @@ export default function HeroSection() {
             </Link>
 
             <a
-              href="https://wa.me/201050074058"
+              href="https://wa.me/201027340063"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border border-white/20 px-8 py-4 rounded-2xl font-bold text-lg shadow-md hover:-translate-y-1 transition-all duration-300"
@@ -79,7 +79,7 @@ export default function HeroSection() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl font-black text-primary mb-4">
-              لماذا تختار منصة الأستاذ أبو الفتيان؟
+              لماذا تختار منصة المسيو محمد فهمي سليم؟
             </h2>
             <p className="text-slate-600 font-medium">
               نقدم نظاماً تعليمياً شاملاً ومريحاً يساعدك على استثمار وقتك والوصول لأعلى درجات التفوق والتميز.
@@ -120,19 +120,19 @@ export default function HeroSection() {
             ابدأ رحلة التميز معنا من الآن
           </h2>
           <p className="text-slate-600 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
-            سيبدأ الحجز من شهر 7 بمشيئة الله تعالى لطلاب الصف الثاني الثانوي. احجز مقعدك الآن وتواصل مع المدرس مباشرة لمتابعة الخطة الدراسية وتدريبات المنهج.
+            سيبدأ الحجز من شهر 7 بمشيئة الله تعالى لطلاب المرحلة الثانوية. احجز مقعدك الآن وتواصل مع المسيو مباشرة لمتابعة الخطة الدراسية وتدريبات المنهج.
           </p>
 
           <div className="bg-slate-50 border border-slate-100 p-8 rounded-3xl inline-flex flex-col sm:flex-row items-center gap-8 shadow-sm">
             <div className="text-right">
               <h4 className="text-sm font-bold text-slate-500 mb-1">أرقام الحجز والاستفسار</h4>
               <p className="text-2xl font-black text-primary tracking-wider">
-                01050074058 / 01065933436
+                01027340063
               </p>
             </div>
             <div className="h-px w-full sm:h-12 sm:w-px bg-slate-200" />
             <a
-              href="https://wa.me/201050074058"
+              href="https://wa.me/201027340063"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-[#25D366] hover:bg-[#20ba59] text-white px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-300"
