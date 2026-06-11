@@ -38,15 +38,44 @@ export default function HeroSection() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
             {/* Text Content */}
-            <div className="text-center lg:text-right flex-1">
+            <div className="text-center lg:text-right flex-1 w-full">
+              {/* Badge */}
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 text-accent font-bold text-sm mb-6 animate-pulse-slow">
                 <Sparkles className="h-4 w-4" />
                 <span>بسم الله الرحمن الرحيم</span>
               </div>
 
-              <h1 className="text-4xl sm:text-6xl font-black tracking-tight mb-4 leading-tight">
+              {/* Teacher Name */}
+              <h1 className="text-4xl sm:text-6xl font-black tracking-tight mb-6 leading-tight">
                 المسيو / <span className="text-accent">محمد فهمي سليم</span>
               </h1>
+
+              {/* ===== Mobile-only Photo (between name and subtitle) ===== */}
+              <div className="flex lg:hidden justify-center mb-6">
+                <div className="relative">
+                  {/* Outer decorative ring */}
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent via-accent/50 to-transparent p-1 animate-pulse-slow">
+                    <div className="w-full h-full rounded-full bg-primary-dark/80" />
+                  </div>
+                  {/* Photo frame */}
+                  <div className="relative w-52 h-52 rounded-full overflow-hidden border-4 border-accent/60 shadow-2xl shadow-accent/20">
+                    <Image
+                      src="/teacher.png"
+                      alt="المسيو محمد فهمي سليم - خبير اللغة الفرنسية"
+                      fill
+                      className="object-cover object-top"
+                      priority
+                    />
+                  </div>
+                  {/* Badge */}
+                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-accent text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg whitespace-nowrap">
+                    Excellence • متعة التعلم
+                  </div>
+                </div>
+              </div>
+              {/* ===== End Mobile Photo ===== */}
+
+              {/* Subtitle */}
               <p className="text-xl sm:text-3xl font-extrabold text-slate-200 mb-6">
                 خبير اللغة الفرنسية للمرحلة الثانوية
               </p>
@@ -77,8 +106,8 @@ export default function HeroSection() {
               </div>
             </div>
 
-            {/* Teacher Photo */}
-            <div className="flex-shrink-0 flex flex-col items-center gap-4">
+            {/* Desktop-only Teacher Photo (right column) */}
+            <div className="hidden lg:flex flex-shrink-0 flex-col items-center gap-4">
               <div className="relative">
                 {/* Outer decorative ring */}
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent via-accent/50 to-transparent p-1 animate-pulse-slow">
