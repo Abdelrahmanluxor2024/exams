@@ -26,10 +26,10 @@ export default async function ExamsPage() {
             <BookOpenCheck className="h-8 w-8 text-accent" />
           </div>
           <h1 className="text-3xl sm:text-4.5xl font-black text-primary mb-4">
-            الامتحانات التفاعلية مادة التاريخ
+            الامتحانات التفاعلية مادة اللغة الفرنسية
           </h1>
           <p className="text-slate-600 font-medium">
-            اختر الامتحان المناسب وابدأ التقييم فوراً لمراجعة معلوماتك ومستوى استيعابك للمنهج الوطني للصف الثاني الثانوي.
+            اختر الامتحان المناسب وابدأ التقييم فوراً لمراجعة معلوماتك ومستوى استيعابك لمنهج اللغة الفرنسية للمرحلة الثانوية.
           </p>
         </div>
 
@@ -58,7 +58,7 @@ export default async function ExamsPage() {
               </div>
               <h3 className="text-xl font-bold text-primary mb-2">لا يوجد امتحانات حالياً</h3>
               <p className="text-slate-500 text-sm">
-                تابع هذه الصفحة باستمرار، حيث يقوم الأستاذ أبو الفتيان بإضافة امتحانات واختبارات دورية جديدة.
+                تابع هذه الصفحة باستمرار، حيث يقوم المسيو محمد فهمي سليم بإضافة امتحانات واختبارات دورية جديدة.
               </p>
             </div>
           )
