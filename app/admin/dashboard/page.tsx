@@ -1,27 +1,57 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import * as XLSX from "xlsx";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 import {
   Users,
   Award,
   BookOpen,
-  Calendar,
-  Download,
   LogOut,
   Search,
   CheckCircle,
   XCircle,
-  FileSpreadsheet,
-  Trash2,
-  AlertCircle,
+  Download,
+  RefreshCw,
+  Eye,
+  X,
+  Copy,
+  BarChart2,
+  FileText,
+  Activity,
+  ClipboardList,
+  Phone,
+  User,
+  Calendar,
   Clock,
-  ExternalLink,
-  Trophy,
+  GraduationCap,
+  AlertCircle,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface AnswerDetail {
+  question_number?: number;
+  question?: string;
+  question_text?: string;
+  student_answer?: string | string[];
+  correct_answer?: string | string[];
+  correct_answers?: string | string[];
+  is_correct?: boolean;
+  options?: Record<string, string>;
+}
 
 interface StudentResult {
   id: string;
@@ -36,22 +66,304 @@ interface StudentResult {
   score_percentage: number;
   time_taken_seconds: number;
   created_at: string;
+  submitted_at?: string;
+  answers?: AnswerDetail[];
 }
+
+interface Exam {
+  id: string;
+  title: string;
+  exam_code: string;
+  description?: string;
+  duration_minutes: number;
+  total_questions: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+type ActiveTab = "results" | "exams" | "charts";
+
+// ─── Helper Functions ─────────────────────────────────────────────────────────
+
+function formatTime(secs: number): string {
+  const mins = Math.floor(secs / 60);
+  const remainingSecs = secs % 60;
+  if (mins === 0) return `${remainingSecs} ثانية`;
+  if (remainingSecs === 0) return `${mins} دقيقة`;
+  return `${mins}د ${remainingSecs}ث`;
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("ar-EG", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function exportToCSV(results: StudentResult[]) {
+  if (results.length === 0) {
+    alert("لا توجد بيانات لتصديرها.");
+    return;
+  }
+
+  const headers = [
+    "#",
+    "اسم الطالب",
+    "رقم الهاتف",
+    "الامتحان",
+    "الدرجة",
+    "النسبة %",
+    "الوقت (ثانية)",
+    "التاريخ",
+  ];
+
+  const rows = results.map((r, i) => [
+    i + 1,
+    r.student_name,
+    r.student_phone || "-",
+    r.exam_title,
+    `${r.correct_answers}/${r.total_questions}`,
+    `${Math.round(r.score_percentage)}%`,
+    r.time_taken_seconds,
+    formatDate(r.created_at || r.submitted_at || ""),
+  ]);
+
+  const csvContent =
+    "\uFEFF" + // BOM for Arabic support
+    [headers, ...rows]
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `نتائج_الطلاب_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  icon,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+}) {
+  return (
+    <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex items-center justify-between gap-4 card-hover">
+      <div className="text-right">
+        <p className="text-xs font-bold text-slate-400 mb-1">{label}</p>
+        <p className="text-2xl font-black text-primary">{value}</p>
+      </div>
+      <div className={`p-3 rounded-xl flex-shrink-0 ${color}`}>{icon}</div>
+    </div>
+  );
+}
+
+// ─── Result Details Modal ─────────────────────────────────────────────────────
+
+function ResultModal({
+  result,
+  onClose,
+}: {
+  result: StudentResult;
+  onClose: () => void;
+}) {
+  const answers: AnswerDetail[] = Array.isArray(result.answers)
+    ? result.answers
+    : [];
+  const dateStr = result.created_at || result.submitted_at || "";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fadeIn"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-500"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <h2 className="text-lg font-black text-primary">تفاصيل النتيجة</h2>
+        </div>
+
+        {/* Modal Body */}
+        <div className="overflow-y-auto p-6 space-y-5">
+          {/* Info Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
+                <span>الطالب</span>
+                <User className="h-3.5 w-3.5" />
+              </p>
+              <p className="text-sm font-black text-primary text-right">
+                {result.student_name}
+              </p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
+                <span>الهاتف</span>
+                <Phone className="h-3.5 w-3.5" />
+              </p>
+              <p className="text-sm font-black text-primary text-right font-mono">
+                {result.student_phone || "غير مسجل"}
+              </p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
+                <span>الامتحان</span>
+                <BookOpen className="h-3.5 w-3.5" />
+              </p>
+              <p className="text-sm font-black text-primary text-right">
+                {result.exam_title}
+              </p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
+                <span>الدرجة</span>
+                <Award className="h-3.5 w-3.5" />
+              </p>
+              <p className="text-sm font-black text-right">
+                <span
+                  className={
+                    result.score_percentage >= 50
+                      ? "text-green-600"
+                      : "text-red-500"
+                  }
+                >
+                  ({Math.round(result.score_percentage)}%)
+                </span>{" "}
+                <span className="text-primary">
+                  {result.correct_answers}/{result.total_questions}
+                </span>
+              </p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
+                <span>الوقت المستغرق</span>
+                <Clock className="h-3.5 w-3.5" />
+              </p>
+              <p className="text-sm font-black text-primary text-right">
+                {result.time_taken_seconds
+                  ? formatTime(result.time_taken_seconds)
+                  : "-"}
+              </p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
+                <span>التاريخ</span>
+                <Calendar className="h-3.5 w-3.5" />
+              </p>
+              <p className="text-sm font-black text-primary text-right">
+                {dateStr ? formatDate(dateStr) : "-"}
+              </p>
+            </div>
+          </div>
+
+          {/* Answers Section */}
+          {answers.length > 0 && (
+            <div>
+              <h3 className="text-sm font-black text-primary mb-3 text-right border-b border-slate-100 pb-2">
+                الإجابات:
+              </h3>
+              <div className="space-y-3">
+                {answers.map((ans, idx) => {
+                  const isCorrect = ans.is_correct;
+                  const questionText =
+                    ans.question_text || ans.question || `سؤال ${idx + 1}`;
+                  const studentAns = Array.isArray(ans.student_answer)
+                    ? ans.student_answer.join(", ")
+                    : ans.student_answer || "-";
+                  const rawCorrect = ans.correct_answer || ans.correct_answers;
+                  const correctAns = Array.isArray(rawCorrect)
+                    ? rawCorrect.join(", ")
+                    : (rawCorrect as string) || "-";
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`rounded-xl p-4 border text-right ${
+                        isCorrect
+                          ? "bg-green-50 border-green-100"
+                          : "bg-red-50 border-red-100"
+                      }`}
+                    >
+                      <p className="text-xs font-bold text-slate-700 mb-2">
+                        س{idx + 1}: {questionText}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        إجابة الطالب:{" "}
+                        <span
+                          className={
+                            isCorrect ? "text-green-600" : "text-red-500"
+                          }
+                        >
+                          {studentAns}
+                        </span>
+                      </p>
+                      {!isCorrect && (
+                        <p className="text-xs font-semibold text-slate-500 mt-1">
+                          الإجابة الصحيحة:{" "}
+                          <span className="text-green-600">{correctAns}</span>
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Dashboard Component ─────────────────────────────────────────────────
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [results, setResults] = useState<StudentResult[]>([]);
-  const [exams, setExams] = useState<{ id: string; title: string; exam_code: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  // Auth
   const [authorized, setAuthorized] = useState(false);
 
-  // Filter states
-  const [searchName, setSearchName] = useState("");
-  const [selectedExamCode, setSelectedExamCode] = useState("all");
-  const [selectedDate, setSelectedDate] = useState("");
+  // Data
+  const [results, setResults] = useState<StudentResult[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Authenticate on mount
+  // UI State
+  const [activeTab, setActiveTab] = useState<ActiveTab>("results");
+  const [selectedResult, setSelectedResult] = useState<StudentResult | null>(
+    null
+  );
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Filters
+  const [searchName, setSearchName] = useState("");
+  const [selectedExamFilter, setSelectedExamFilter] = useState("all");
+
+  // ── Auth Check ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const isAuth = sessionStorage.getItem("admin_authenticated");
     if (isAuth !== "true") {
@@ -61,386 +373,569 @@ export default function AdminDashboard() {
     }
   }, [router]);
 
-  // Fetch data
-  useEffect(() => {
+  // ── Fetch Data ──────────────────────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
     if (!authorized) return;
+    setLoading(true);
+    setError("");
+    try {
+      const supabase = createClient();
 
-    const fetchData = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const supabase = createClient();
-
-        // 1. Fetch student results
-        const { data: resultsData, error: resultsError } = await supabase
+      const [resultsRes, examsRes] = await Promise.all([
+        supabase
           .from("student_results")
           .select("*")
-          .order("created_at", { ascending: false });
-
-        if (resultsError) throw resultsError;
-        setResults(resultsData || []);
-
-        // 2. Fetch exams list for filter
-        const { data: examsData, error: examsError } = await supabase
+          .order("created_at", { ascending: false }),
+        supabase
           .from("exams")
-          .select("id, title, exam_code");
+          .select("id, title, exam_code, description, duration_minutes, total_questions, is_active, created_at")
+          .order("created_at", { ascending: false }),
+      ]);
 
-        if (examsError) throw examsError;
-        setExams(examsData || []);
-      } catch (err: any) {
-        console.error("Fetch dashboard error:", err);
-        setError(err.message || "حدث خطأ أثناء تحميل البيانات من السيرفر.");
-      } finally {
-        setLoading(false);
-      }
-    };
+      if (resultsRes.error) throw resultsRes.error;
+      if (examsRes.error) throw examsRes.error;
 
-    fetchData();
+      setResults(resultsRes.data || []);
+      setExams(examsRes.data || []);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "حدث خطأ غير متوقع";
+      setError(msg || "حدث خطأ أثناء تحميل البيانات.");
+    } finally {
+      setLoading(false);
+    }
   }, [authorized]);
 
-  // Handle Logout
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
   const handleLogout = () => {
     sessionStorage.removeItem("admin_authenticated");
     router.push("/admin");
   };
 
-  // Delete a result
-  const handleDeleteResult = async (id: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذه النتيجة نهائياً؟")) return;
-
+  const handleToggleExam = async (exam: Exam) => {
     try {
       const supabase = createClient();
-      const { error: deleteError } = await supabase
-        .from("student_results")
-        .delete()
-        .eq("id", id);
+      const { error: updateError } = await supabase
+        .from("exams")
+        .update({ is_active: !exam.is_active })
+        .eq("id", exam.id);
 
-      if (deleteError) throw deleteError;
-
-      // Update state
-      setResults((prev) => prev.filter((r) => r.id !== id));
-    } catch (err: any) {
-      alert("فشل حذف النتيجة: " + err.message);
+      if (updateError) throw updateError;
+      setExams((prev) =>
+        prev.map((e) =>
+          e.id === exam.id ? { ...e, is_active: !e.is_active } : e
+        )
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "فشلت العملية";
+      alert("فشل التحديث: " + msg);
     }
   };
 
-  // Filtered results
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  // ── Computed Values ──────────────────────────────────────────────────────────
   const filteredResults = results.filter((r) => {
-    const matchesSearch = r.student_name.toLowerCase().includes(searchName.toLowerCase());
-    const matchesExam = selectedExamCode === "all" || r.exam_code === selectedExamCode;
-    const matchesDate = !selectedDate || r.created_at.startsWith(selectedDate);
-    return matchesSearch && matchesExam && matchesDate;
+    const matchesSearch = r.student_name
+      .toLowerCase()
+      .includes(searchName.toLowerCase());
+    const matchesExam =
+      selectedExamFilter === "all" || r.exam_code === selectedExamFilter;
+    return matchesSearch && matchesExam;
   });
 
-  // Calculate statistics
-  const totalStudents = filteredResults.length;
+  const activeExamsCount = exams.filter((e) => e.is_active).length;
+  const completedExamsCount = new Set(results.map((r) => r.exam_code)).size;
+  const totalStudents = results.length;
   const averageScore =
-    totalStudents > 0
-      ? Math.round(filteredResults.reduce((acc, curr) => acc + curr.score_percentage, 0) / totalStudents)
-      : 0;
-  const passRate =
-    totalStudents > 0
-      ? Math.round(
-          (filteredResults.filter((r) => r.score_percentage >= 50).length / totalStudents) * 100
-        )
-      : 0;
-  const highestScore =
-    totalStudents > 0
-      ? Math.max(...filteredResults.map((r) => r.score_percentage))
-      : 0;
+    results.length > 0
+      ? (
+          results.reduce((acc, r) => acc + r.score_percentage, 0) /
+          results.length
+        ).toFixed(1)
+      : "0";
 
-  // Recharts BarChart data (Average Score by Exam)
+  // Chart data
   const examGroupMap: Record<string, { sum: number; count: number }> = {};
-  filteredResults.forEach((r) => {
+  results.forEach((r) => {
     if (!examGroupMap[r.exam_title]) {
       examGroupMap[r.exam_title] = { sum: 0, count: 0 };
     }
     examGroupMap[r.exam_title].sum += r.score_percentage;
     examGroupMap[r.exam_title].count += 1;
   });
-
   const chartData = Object.entries(examGroupMap).map(([title, val]) => ({
-    name: title,
+    name: title.length > 20 ? title.slice(0, 20) + "..." : title,
     النسبة: Math.round(val.sum / val.count),
-    عدد_الطلاب: val.count,
+    الطلاب: val.count,
   }));
 
-  // Export to Excel handler
-  const handleExportExcel = () => {
-    if (filteredResults.length === 0) {
-      alert("لا توجد بيانات لتصديرها.");
-      return;
-    }
-
-    const wsData = filteredResults.map((r, idx) => ({
-      "م": idx + 1,
-      "اسم الطالب": r.student_name,
-      "رقم الهاتف": r.student_phone || "غير مسجل",
-      "الامتحان": r.exam_title,
-      "كود الامتحان": r.exam_code,
-      "عدد الأسئلة الصحيحة": r.correct_answers,
-      "عدد الأسئلة الخاطئة": r.wrong_answers,
-      "إجمالي الأسئلة": r.total_questions,
-      "النسبة المئوية %": `${Math.round(r.score_percentage)}%`,
-      "الوقت المستغرق (ثانية)": r.time_taken_seconds,
-      "تاريخ الإرسال": new Date(r.created_at).toLocaleDateString("ar-EG") + " " + new Date(r.created_at).toLocaleTimeString("ar-EG"),
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "النتائج");
-
-    // Auto-fit columns
-    const maxKeys = Object.keys(wsData[0]);
-    ws["!cols"] = maxKeys.map(() => ({ wch: 20 }));
-
-    XLSX.writeFile(wb, `نتائج_الطلاب_منصة_ابو_الفتيان_${new Date().toISOString().slice(0,10)}.xlsx`);
-  };
-
-  const formatTableTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remainingSecs = secs % 60;
-    if (mins === 0) return `${remainingSecs}ث`;
-    return `${mins}د ${remainingSecs}ث`;
-  };
-
-  if (!authorized) {
-    return null;
-  }
+  if (!authorized) return null;
 
   return (
-    <div className="py-10 bg-slate-50 min-h-[calc(100vh-250px)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-fadeIn">
-        {/* Header Block */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="text-right">
-            <h1 className="text-2xl sm:text-3.5xl font-black text-primary">لوحة إدارة المعلم</h1>
-            <p className="text-slate-500 font-bold text-sm mt-1">
-              متابعة درجات الطلاب، إحصائيات الامتحانات، وتصدير التقارير.
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-5 py-3 rounded-2xl font-bold text-sm transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>تسجيل الخروج</span>
-          </button>
-        </div>
+    <>
+      {/* Result Details Modal */}
+      {selectedResult && (
+        <ResultModal
+          result={selectedResult}
+          onClose={() => setSelectedResult(null)}
+        />
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl flex items-center gap-3">
-            <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0" />
-            <p className="font-extrabold text-sm">{error}</p>
-          </div>
-        )}
+      <div className="min-h-screen bg-[#f0f2f8] py-6 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto space-y-5 animate-fadeIn">
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-4">
-            <div className="p-4 bg-primary/5 text-primary rounded-2xl">
-              <Users className="h-7 w-7 text-accent" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-400 block">إجمالي الطلاب</span>
-              <span className="text-2xl font-black text-primary">{totalStudents}</span>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-4">
-            <div className="p-4 bg-primary/5 text-primary rounded-2xl">
-              <Award className="h-7 w-7 text-accent" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-400 block">متوسط الدرجات</span>
-              <span className="text-2xl font-black text-primary">{averageScore}%</span>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-4">
-            <div className="p-4 bg-primary/5 text-primary rounded-2xl">
-              <CheckCircle className="h-7 w-7 text-accent" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-400 block">نسبة النجاح (50%+)</span>
-              <span className="text-2xl font-black text-primary">{passRate}%</span>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-4">
-            <div className="p-4 bg-primary/5 text-primary rounded-2xl">
-              <Trophy className="h-7 w-7 text-accent" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-400 block">أعلى نسبة مئوية</span>
-              <span className="text-2xl font-black text-primary">{highestScore}%</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Charts & Statistics Block */}
-        {!loading && chartData.length > 0 && (
-          <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm">
-            <h3 className="text-lg font-black text-primary mb-6">متوسط درجات الطلاب لكل امتحان</h3>
-            <div className="w-full h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: "bold" }} />
-                  <YAxis domain={[0, 100]} tickFormatter={(val) => `${val}%`} />
-                  <Tooltip formatter={(value) => [`${value}%`, "متوسط الدرجة"]} />
-                  <Bar dataKey="النسبة" fill="#1a2754" radius={[8, 8, 0, 0]} barSize={40}>
-                    {chartData.map((entry: any, index: number) => (
-                      <Bar key={`bar-${index}`} dataKey="النسبة" fill={entry.النسبة >= 50 ? "#1a2754" : "#e63946"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Data Table & Filters */}
-        <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden">
-          {/* Filters Bar */}
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto flex-grow max-w-4xl">
-              {/* Search */}
-              <div className="relative">
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Search className="h-4.5 w-4.5" />
-                </div>
-                <input
-                  type="text"
-                  value={searchName}
-                  onChange={(e) => setSearchName(e.target.value)}
-                  placeholder="ابحث باسم الطالب..."
-                  className="w-full pr-10 pl-4 py-2.5 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-accent bg-white"
-                />
-              </div>
-
-              {/* Exam select */}
-              <select
-                value={selectedExamCode}
-                onChange={(e) => setSelectedExamCode(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-accent bg-white"
+          {/* ── Header ─────────────────────────────────────────────────────── */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-4 flex items-center justify-between">
+            {/* Left: Actions */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm"
               >
-                <option value="all">كل الامتحانات</option>
-                {exams.map((ex) => (
-                  <option key={ex.id} value={ex.exam_code}>
-                    {ex.title}
-                  </option>
-                ))}
-              </select>
-
-              {/* Date Input */}
-              <div className="relative">
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-accent bg-white text-right"
+                <LogOut className="h-4 w-4" />
+                <span>خروج</span>
+              </button>
+              <button
+                onClick={fetchData}
+                disabled={loading}
+                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold text-sm transition-all"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
                 />
-              </div>
+                <span>تحديث</span>
+              </button>
             </div>
 
-            <button
-              onClick={handleExportExcel}
-              className="flex items-center gap-2 bg-[#2ec4b6] hover:bg-[#28ab9e] text-white px-5 py-3 rounded-2xl font-black text-sm shadow-md hover:shadow-emerald-500/20 transition-all flex-shrink-0 w-full md:w-auto justify-center"
-            >
-              <FileSpreadsheet className="h-4.5 w-4.5" />
-              <span>تصدير Excel</span>
-            </button>
-          </div>
-
-          {/* Results Table */}
-          {loading ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-accent"></div>
-              <span className="text-slate-400 text-sm font-bold">جاري تحميل كشوف الدرجات...</span>
-            </div>
-          ) : filteredResults.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-500 font-extrabold text-xs border-b border-slate-150">
-                    <th className="px-6 py-4">اسم الطالب</th>
-                    <th className="px-6 py-4">رقم الهاتف</th>
-                    <th className="px-6 py-4">اسم الامتحان</th>
-                    <th className="px-6 py-4 text-center">الدرجة</th>
-                    <th className="px-6 py-4 text-center">النسبة المئوية</th>
-                    <th className="px-6 py-4 text-center">الوقت المستغرق</th>
-                    <th className="px-6 py-4">تاريخ التقديم</th>
-                    <th className="px-6 py-4 text-center">خيارات</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 text-sm font-semibold">
-                  {filteredResults.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 select-all text-primary font-bold">{row.student_name}</td>
-                      <td className="px-6 py-4 text-xs font-mono">{row.student_phone || "-"}</td>
-                      <td className="px-6 py-4 text-slate-500">{row.exam_title}</td>
-                      <td className="px-6 py-4 text-center text-xs font-black">
-                        {row.correct_answers} / {row.total_questions}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-1 rounded-xl text-xs font-black ${
-                            row.score_percentage >= 50
-                              ? "bg-green-50 text-green-700 border border-green-100"
-                              : "bg-red-50 text-red-700 border border-red-100"
-                          }`}
-                        >
-                          {Math.round(row.score_percentage)}%
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center text-xs font-mono">
-                        {formatTableTime(row.time_taken_seconds)}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-400 font-medium">
-                        {new Date(row.created_at).toLocaleDateString("ar-EG", {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
-                        <a
-                          href={`/exams/${row.exam_code}/result?resultId=${row.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 text-primary hover:bg-slate-100 rounded-xl transition-colors"
-                          title="عرض التقرير الكامل"
-                        >
-                          <ExternalLink className="h-4.5 w-4.5" />
-                        </a>
-                        <button
-                          onClick={() => handleDeleteResult(row.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                          title="حذف النتيجة"
-                        >
-                          <Trash2 className="h-4.5 w-4.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="py-20 text-center max-w-md mx-auto">
-              <div className="p-4 bg-slate-50 rounded-full inline-block text-slate-400 mb-4">
-                <Users className="h-10 w-10" />
-              </div>
-              <h4 className="text-base font-bold text-primary mb-1">لم يتم العثور على أي نتائج</h4>
-              <p className="text-slate-400 text-xs">
-                لا توجد درجات تطابق فلاتر البحث الحالية، أو لم يتم تقديم امتحانات بعد.
+            {/* Right: Title */}
+            <div className="text-right">
+              <h1 className="text-2xl font-black text-primary">لوحة التحكم</h1>
+              <p className="text-xs font-semibold text-slate-400">
+                إدارة الامتحانات والنتائج
               </p>
             </div>
+          </div>
+
+          {/* ── Error Banner ────────────────────────────────────────────────── */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+              <p className="font-bold text-sm">{error}</p>
+            </div>
           )}
+
+          {/* ── Stats Grid ──────────────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="امتحانات نشطة"
+              value={activeExamsCount}
+              icon={<Activity className="h-6 w-6 text-purple-500" />}
+              color="bg-purple-50"
+            />
+            <StatCard
+              label="متوسط الدرجات"
+              value={`${averageScore}%`}
+              icon={<Award className="h-6 w-6 text-amber-500" />}
+              color="bg-amber-50"
+            />
+            <StatCard
+              label="امتحانات مؤداة"
+              value={completedExamsCount}
+              icon={<ClipboardList className="h-6 w-6 text-emerald-500" />}
+              color="bg-emerald-50"
+            />
+            <StatCard
+              label="إجمالي الطلاب"
+              value={totalStudents}
+              icon={<Users className="h-6 w-6 text-sky-500" />}
+              color="bg-sky-50"
+            />
+          </div>
+
+          {/* ── Tabs ───────────────────────────────────────────────────────── */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            {/* Tab Bar */}
+            <div className="flex items-center justify-end gap-1 p-3 border-b border-slate-100 bg-slate-50/50">
+              {[
+                {
+                  key: "results" as ActiveTab,
+                  label: "النتائج",
+                  icon: <FileText className="h-4 w-4" />,
+                },
+                {
+                  key: "exams" as ActiveTab,
+                  label: "الامتحانات",
+                  icon: <Activity className="h-4 w-4" />,
+                },
+                {
+                  key: "charts" as ActiveTab,
+                  label: "الرسوم البيانية",
+                  icon: <BarChart2 className="h-4 w-4" />,
+                },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                    activeTab === tab.key
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* ── Results Tab ───────────────────────────────────────────────── */}
+            {activeTab === "results" && (
+              <div>
+                {/* Filters Row */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-4 border-b border-slate-100">
+                  {/* Search */}
+                  <div className="relative flex-grow max-w-xs ms-auto">
+                    <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                      <Search className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="text"
+                      value={searchName}
+                      onChange={(e) => setSearchName(e.target.value)}
+                      placeholder="بحث بالاسم..."
+                      className="w-full pr-9 pl-3 py-2 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-accent bg-white text-right"
+                    />
+                  </div>
+
+                  {/* Exam Filter */}
+                  <select
+                    value={selectedExamFilter}
+                    onChange={(e) => setSelectedExamFilter(e.target.value)}
+                    className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-accent bg-white"
+                  >
+                    <option value="all">كل الامتحانات</option>
+                    {exams.map((ex) => (
+                      <option key={ex.id} value={ex.exam_code}>
+                        {ex.title}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Export CSV */}
+                  <button
+                    onClick={() => exportToCSV(filteredResults)}
+                    className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>تصدير CSV</span>
+                  </button>
+                </div>
+
+                {/* Table */}
+                {loading ? (
+                  <div className="py-20 flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-accent" />
+                    <span className="text-slate-400 text-sm font-bold">
+                      جاري تحميل النتائج...
+                    </span>
+                  </div>
+                ) : filteredResults.length > 0 ? (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-right">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 text-xs font-extrabold border-b border-slate-100">
+                            <th className="px-4 py-3">#</th>
+                            <th className="px-4 py-3">الاسم</th>
+                            <th className="px-4 py-3">الهاتف</th>
+                            <th className="px-4 py-3">الامتحان</th>
+                            <th className="px-4 py-3 text-center">الدرجة</th>
+                            <th className="px-4 py-3 text-center">النسبة</th>
+                            <th className="px-4 py-3">التاريخ</th>
+                            <th className="px-4 py-3 text-center">إجراء</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {filteredResults.map((row, idx) => {
+                            const dateStr =
+                              row.created_at || row.submitted_at || "";
+                            return (
+                              <tr
+                                key={row.id}
+                                className="hover:bg-slate-50/60 transition-colors"
+                              >
+                                <td className="px-4 py-3 text-xs font-bold text-slate-400">
+                                  {idx + 1}
+                                </td>
+                                <td className="px-4 py-3 font-black text-primary text-sm">
+                                  {row.student_name}
+                                </td>
+                                <td className="px-4 py-3 text-xs font-mono text-slate-500">
+                                  {row.student_phone || "-"}
+                                </td>
+                                <td className="px-4 py-3 text-xs font-semibold text-slate-600 max-w-[160px] truncate">
+                                  {row.exam_title}
+                                </td>
+                                <td className="px-4 py-3 text-center text-sm font-black text-primary">
+                                  {row.correct_answers}/{row.total_questions}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span
+                                    className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black ${
+                                      row.score_percentage >= 50
+                                        ? "bg-green-50 text-green-700"
+                                        : "bg-red-50 text-red-600"
+                                    }`}
+                                  >
+                                    {Math.round(row.score_percentage)}%
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-400 font-medium">
+                                  {dateStr ? formatDate(dateStr) : "-"}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={() => setSelectedResult(row)}
+                                    className="p-2 rounded-xl bg-amber-50 text-amber-500 hover:bg-amber-100 transition-colors"
+                                    title="عرض التفاصيل"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Footer count */}
+                    <div className="px-4 py-3 border-t border-slate-100 text-xs font-bold text-slate-400 text-right">
+                      عرض {filteredResults.length} من {results.length} نتيجة
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-20 text-center">
+                    <div className="p-4 bg-slate-50 rounded-full inline-block text-slate-300 mb-4">
+                      <Users className="h-10 w-10" />
+                    </div>
+                    <h4 className="text-base font-bold text-primary mb-1">
+                      لا توجد نتائج
+                    </h4>
+                    <p className="text-slate-400 text-xs">
+                      لم يتقدم أي طالب للامتحان بعد، أو لا توجد نتائج تطابق
+                      البحث.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Exams Tab ─────────────────────────────────────────────────── */}
+            {activeTab === "exams" && (
+              <div className="p-4">
+                {loading ? (
+                  <div className="py-20 flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-accent" />
+                    <span className="text-slate-400 text-sm font-bold">
+                      جاري تحميل الامتحانات...
+                    </span>
+                  </div>
+                ) : exams.length > 0 ? (
+                  <div className="space-y-3">
+                    {exams.map((exam) => (
+                      <div
+                        key={exam.id}
+                        className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between gap-4 transition-all hover:border-slate-200"
+                      >
+                        {/* Left: Toggle Button */}
+                        <button
+                          onClick={() => handleToggleExam(exam)}
+                          className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                            exam.is_active
+                              ? "bg-red-50 text-red-500 hover:bg-red-100"
+                              : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                          }`}
+                        >
+                          {exam.is_active ? (
+                            <>
+                              <ToggleLeft className="h-4 w-4" />
+                              <span>تعطيل</span>
+                            </>
+                          ) : (
+                            <>
+                              <ToggleRight className="h-4 w-4" />
+                              <span>تفعيل</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Right: Exam Info */}
+                        <div className="text-right flex-grow">
+                          <div className="flex items-center gap-2 justify-end mb-1">
+                            <span
+                              className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                                exam.is_active
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-red-100 text-red-600"
+                              }`}
+                            >
+                              {exam.is_active ? "مفعّل" : "مغلق"}
+                            </span>
+                            <h3 className="text-base font-black text-primary">
+                              {exam.title}
+                            </h3>
+                          </div>
+                          <p className="text-xs font-semibold text-slate-400 mb-2">
+                            {exam.description || "لا يوجد وصف"} •{" "}
+                            {exam.duration_minutes} دقيقة •{" "}
+                            {exam.total_questions} سؤال
+                          </p>
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              onClick={() => handleCopyCode(exam.exam_code)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-200 transition-colors"
+                              title="نسخ الكود"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg font-mono">
+                              {copiedCode === exam.exam_code
+                                ? "✓ تم النسخ"
+                                : exam.exam_code}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">
+                              الكود:
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-20 text-center">
+                    <div className="p-4 bg-slate-50 rounded-full inline-block text-slate-300 mb-4">
+                      <BookOpen className="h-10 w-10" />
+                    </div>
+                    <h4 className="text-base font-bold text-primary mb-1">
+                      لا توجد امتحانات
+                    </h4>
+                    <p className="text-slate-400 text-xs">
+                      لم يتم إنشاء أي امتحان بعد.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Charts Tab ────────────────────────────────────────────────── */}
+            {activeTab === "charts" && (
+              <div className="p-6">
+                {loading ? (
+                  <div className="py-20 flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-accent" />
+                  </div>
+                ) : chartData.length > 0 ? (
+                  <div>
+                    <h3 className="text-base font-black text-primary mb-6 text-right">
+                      متوسط درجات الطلاب لكل امتحان
+                    </h3>
+                    <div className="w-full h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={chartData}
+                          margin={{ top: 10, right: 10, left: 10, bottom: 30 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                            stroke="#f1f5f9"
+                          />
+                          <XAxis
+                            dataKey="name"
+                            tick={{ fontSize: 11, fontWeight: "bold" }}
+                            angle={-15}
+                            textAnchor="end"
+                          />
+                          <YAxis
+                            domain={[0, 100]}
+                            tickFormatter={(val) => `${val}%`}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <Tooltip
+                            formatter={(value) => [
+                              `${value}%`,
+                              "متوسط الدرجة",
+                            ]}
+                            contentStyle={{
+                              borderRadius: "12px",
+                              border: "1px solid #e2e8f0",
+                              fontFamily: "Cairo, sans-serif",
+                            }}
+                          />
+                          <Bar dataKey="النسبة" radius={[8, 8, 0, 0]} barSize={40}>
+                            {chartData.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={
+                                  entry.النسبة >= 50 ? "#1a2754" : "#ef4444"
+                                }
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Extra stats */}
+                    <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {chartData.map((d, i) => (
+                        <div
+                          key={i}
+                          className="bg-slate-50 rounded-xl p-4 text-right"
+                        >
+                          <p
+                            className="text-xs font-bold text-slate-500 mb-1 truncate"
+                            title={d.name}
+                          >
+                            {d.name}
+                          </p>
+                          <p className="text-xl font-black text-primary">
+                            {d.النسبة}%
+                          </p>
+                          <p className="text-xs text-slate-400 font-semibold">
+                            {d.الطلاب} طالب
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-20 text-center">
+                    <div className="p-4 bg-slate-50 rounded-full inline-block text-slate-300 mb-4">
+                      <BarChart2 className="h-10 w-10" />
+                    </div>
+                    <h4 className="text-base font-bold text-primary mb-1">
+                      لا توجد بيانات كافية
+                    </h4>
+                    <p className="text-slate-400 text-xs">
+                      بمجرد تقديم الطلاب للامتحانات، ستظهر الرسوم البيانية
+                      هنا.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
