@@ -381,25 +381,33 @@ export default function AdminDashboard() {
     try {
       const supabase = createClient();
 
-      const [resultsRes, examsRes] = await Promise.all([
-        supabase
-          .from("student_results")
-          .select("*")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("exams")
-          .select("id, title, exam_code, description, duration_minutes, total_questions, is_active, created_at")
-          .order("created_at", { ascending: false }),
-      ]);
+      // Fetch results - try submitted_at first, fallback to created_at
+      const resultsRes = await supabase
+        .from("student_results")
+        .select("*")
+        .order("submitted_at", { ascending: false });
 
-      if (resultsRes.error) throw resultsRes.error;
-      if (examsRes.error) throw examsRes.error;
+      // Fetch exams independently
+      const examsRes = await supabase
+        .from("exams")
+        .select("id, title, exam_code, description, duration_minutes, total_questions, is_active, created_at")
+        .order("created_at", { ascending: false });
+
+      // Extract error message from Supabase PostgrestError or regular Error
+      const extractMsg = (e: unknown) =>
+        (e as { message?: string })?.message || "حدث خطأ في الاتصال بالسيرفر";
+
+      if (resultsRes.error) throw new Error(extractMsg(resultsRes.error));
+      if (examsRes.error) throw new Error(extractMsg(examsRes.error));
 
       setResults(resultsRes.data || []);
       setExams(examsRes.data || []);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "حدث خطأ غير متوقع";
-      setError(msg || "حدث خطأ أثناء تحميل البيانات.");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || "حدث خطأ غير متوقع";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -430,7 +438,10 @@ export default function AdminDashboard() {
         )
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "فشلت العملية";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || "فشلت العملية";
       alert("فشل التحديث: " + msg);
     }
   };
