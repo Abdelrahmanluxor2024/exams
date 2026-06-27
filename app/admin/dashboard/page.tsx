@@ -74,6 +74,7 @@ interface Exam {
   id: string;
   title: string;
   exam_code: string;
+  exam_password: string;
   description?: string;
   duration_minutes: number;
   total_questions: number;
@@ -185,10 +186,18 @@ function ResultModal({
     : [];
   const dateStr = result.created_at || result.submitted_at || "";
 
+  const optionLabels: Record<string, string> = {
+    a: "أ",
+    b: "ب",
+    c: "ج",
+    d: "د",
+    e: "هـ",
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+      style={{ backgroundColor: "rgba(0,0,0,0.50)" }}
       onClick={onClose}
     >
       <div
@@ -196,10 +205,10 @@ function ResultModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-500"
+            className="p-2 hover:bg-slate-200 rounded-xl transition-colors text-slate-500"
           >
             <X className="h-5 w-5" />
           </button>
@@ -208,128 +217,168 @@ function ResultModal({
 
         {/* Modal Body */}
         <div className="overflow-y-auto p-6 space-y-5">
-          {/* Info Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
-                <span>الطالب</span>
-                <User className="h-3.5 w-3.5" />
-              </p>
-              <p className="text-sm font-black text-primary text-right">
-                {result.student_name}
-              </p>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
-                <span>الهاتف</span>
-                <Phone className="h-3.5 w-3.5" />
-              </p>
-              <p className="text-sm font-black text-primary text-right font-mono">
-                {result.student_phone || "غير مسجل"}
-              </p>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
-                <span>الامتحان</span>
-                <BookOpen className="h-3.5 w-3.5" />
-              </p>
-              <p className="text-sm font-black text-primary text-right">
-                {result.exam_title}
-              </p>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
-                <span>الدرجة</span>
-                <Award className="h-3.5 w-3.5" />
-              </p>
-              <p className="text-sm font-black text-right">
+
+          {/* Student Info Banner */}
+          <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 text-right">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
                 <span
-                  className={
+                  className={`text-sm font-black px-3 py-1.5 rounded-xl ${
                     result.score_percentage >= 50
-                      ? "text-green-600"
-                      : "text-red-500"
-                  }
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-600"
+                  }`}
                 >
-                  ({Math.round(result.score_percentage)}%)
-                </span>{" "}
-                <span className="text-primary">
+                  {Math.round(result.score_percentage)}%
+                </span>
+                <span className="text-sm font-black text-primary">
                   {result.correct_answers}/{result.total_questions}
                 </span>
+              </div>
+              <div>
+                <p className="text-base font-black text-primary">{result.student_name}</p>
+                <p className="text-xs font-mono text-slate-400">{result.student_phone || "بدون رقم"}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Info Grid */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-slate-50 rounded-xl p-3 text-right">
+              <p className="text-xs font-bold text-slate-400 mb-0.5">الامتحان</p>
+              <p className="text-xs font-black text-primary">{result.exam_title}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3 text-right">
+              <p className="text-xs font-bold text-slate-400 mb-0.5">الوقت المستغرق</p>
+              <p className="text-xs font-black text-primary">
+                {result.time_taken_seconds ? formatTime(result.time_taken_seconds) : "-"}
               </p>
             </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
-                <span>الوقت المستغرق</span>
-                <Clock className="h-3.5 w-3.5" />
-              </p>
-              <p className="text-sm font-black text-primary text-right">
-                {result.time_taken_seconds
-                  ? formatTime(result.time_taken_seconds)
-                  : "-"}
-              </p>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">
-                <span>التاريخ</span>
-                <Calendar className="h-3.5 w-3.5" />
-              </p>
-              <p className="text-sm font-black text-primary text-right">
+            <div className="bg-slate-50 rounded-xl p-3 text-right">
+              <p className="text-xs font-bold text-slate-400 mb-0.5">التاريخ</p>
+              <p className="text-xs font-black text-primary">
                 {dateStr ? formatDate(dateStr) : "-"}
               </p>
             </div>
           </div>
 
           {/* Answers Section */}
-          {answers.length > 0 && (
+          {answers.length > 0 ? (
             <div>
-              <h3 className="text-sm font-black text-primary mb-3 text-right border-b border-slate-100 pb-2">
-                الإجابات:
-              </h3>
+              <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                <div className="flex gap-3 text-xs font-bold">
+                  <span className="text-green-600">✓ صح: {answers.filter(a => a.is_correct).length}</span>
+                  <span className="text-red-500">✗ خطأ: {answers.filter(a => !a.is_correct).length}</span>
+                </div>
+                <h3 className="text-sm font-black text-primary">الإجابات</h3>
+              </div>
               <div className="space-y-3">
                 {answers.map((ans, idx) => {
                   const isCorrect = ans.is_correct;
                   const questionText =
                     ans.question_text || ans.question || `سؤال ${idx + 1}`;
-                  const studentAns = Array.isArray(ans.student_answer)
-                    ? ans.student_answer.join(", ")
-                    : ans.student_answer || "-";
+
+                  // Normalize student answer
+                  const studentAnsRaw = Array.isArray(ans.student_answer)
+                    ? ans.student_answer
+                    : ans.student_answer ? [ans.student_answer] : [];
+
+                  // Normalize correct answer
                   const rawCorrect = ans.correct_answer || ans.correct_answers;
-                  const correctAns = Array.isArray(rawCorrect)
-                    ? rawCorrect.join(", ")
-                    : (rawCorrect as string) || "-";
+                  const correctAnsRaw = Array.isArray(rawCorrect)
+                    ? rawCorrect
+                    : rawCorrect ? String(rawCorrect).split(",").map(s => s.trim()) : [];
+
+                  // Options map
+                  const opts = ans.options || {};
 
                   return (
                     <div
                       key={idx}
-                      className={`rounded-xl p-4 border text-right ${
+                      className={`rounded-xl border text-right overflow-hidden ${
                         isCorrect
-                          ? "bg-green-50 border-green-100"
-                          : "bg-red-50 border-red-100"
+                          ? "border-green-200"
+                          : "border-red-200"
                       }`}
                     >
-                      <p className="text-xs font-bold text-slate-700 mb-2">
-                        س{idx + 1}: {questionText}
-                      </p>
-                      <p className="text-xs font-semibold text-slate-500">
-                        إجابة الطالب:{" "}
-                        <span
-                          className={
+                      {/* Question header */}
+                      <div className={`px-4 py-2.5 ${
+                        isCorrect ? "bg-green-50" : "bg-red-50"
+                      }`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={`text-xs font-black mt-0.5 flex-shrink-0 ${
                             isCorrect ? "text-green-600" : "text-red-500"
-                          }
-                        >
-                          {studentAns}
-                        </span>
-                      </p>
-                      {!isCorrect && (
-                        <p className="text-xs font-semibold text-slate-500 mt-1">
-                          الإجابة الصحيحة:{" "}
-                          <span className="text-green-600">{correctAns}</span>
-                        </p>
+                          }`}>
+                            {isCorrect ? "✓" : "✗"}
+                          </span>
+                          <p className="text-xs font-bold text-slate-800 leading-relaxed">
+                            س{idx + 1}: {questionText}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Options */}
+                      {Object.keys(opts).length > 0 && (
+                        <div className="px-4 py-3 space-y-1.5 bg-white">
+                          {Object.entries(opts).map(([key, val]) => {
+                            const isStudentChoice = studentAnsRaw.includes(key);
+                            const isCorrectChoice = correctAnsRaw.includes(key);
+                            return (
+                              <div
+                                key={key}
+                                className={`flex items-center gap-2 justify-end px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                                  isCorrectChoice
+                                    ? "bg-green-100 text-green-800 font-black"
+                                    : isStudentChoice && !isCorrect
+                                    ? "bg-red-100 text-red-700"
+                                    : "text-slate-600"
+                                }`}
+                              >
+                                {isCorrectChoice && <span className="text-green-600 font-black">✓</span>}
+                                {isStudentChoice && !isCorrectChoice && <span className="text-red-500 font-black">✗</span>}
+                                <span>{val}</span>
+                                <span className={`font-black text-xs w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${
+                                  isCorrectChoice
+                                    ? "bg-green-600 text-white"
+                                    : isStudentChoice && !isCorrect
+                                    ? "bg-red-500 text-white"
+                                    : "bg-slate-200 text-slate-600"
+                                }`}>
+                                  {optionLabels[key] || key.toUpperCase()}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Fallback: no options stored */}
+                      {Object.keys(opts).length === 0 && (
+                        <div className="px-4 py-2.5 bg-white space-y-1">
+                          <p className="text-xs text-slate-500">
+                            إجابة الطالب:{" "}
+                            <span className={isCorrect ? "text-green-600 font-black" : "text-red-500 font-black"}>
+                              {studentAnsRaw.join(", ") || "لم يُجب"}
+                            </span>
+                          </p>
+                          {!isCorrect && (
+                            <p className="text-xs text-slate-500">
+                              الإجابة الصحيحة:{" "}
+                              <span className="text-green-600 font-black">
+                                {correctAnsRaw.join(", ") || "-"}
+                              </span>
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
                 })}
               </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-400">
+              <p className="text-sm font-bold">لا توجد تفاصيل إجابات محفوظة</p>
             </div>
           )}
         </div>
@@ -387,10 +436,10 @@ export default function AdminDashboard() {
         .select("*")
         .order("submitted_at", { ascending: false });
 
-      // Fetch exams independently
+      // Fetch exams independently - include exam_password
       const examsRes = await supabase
         .from("exams")
-        .select("id, title, exam_code, description, duration_minutes, total_questions, is_active, created_at")
+        .select("id, title, exam_code, exam_password, description, duration_minutes, total_questions, is_active, created_at")
         .order("created_at", { ascending: false });
 
       // Extract error message from Supabase PostgrestError or regular Error
@@ -805,25 +854,34 @@ export default function AdminDashboard() {
                             </h3>
                           </div>
                           <p className="text-xs font-semibold text-slate-400 mb-2">
-                            {exam.description || "لا يوجد وصف"} •{" "}
                             {exam.duration_minutes} دقيقة •{" "}
                             {exam.total_questions} سؤال
                           </p>
-                          <div className="flex items-center gap-2 justify-end">
+                          {/* كود الطالب (exam_password) */}
+                          <div className="flex items-center gap-2 justify-end mb-1">
                             <button
-                              onClick={() => handleCopyCode(exam.exam_code)}
+                              onClick={() => handleCopyCode(exam.exam_password || exam.exam_code)}
                               className="p-1 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-200 transition-colors"
-                              title="نسخ الكود"
+                              title="نسخ كود الطالب"
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </button>
-                            <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg font-mono">
-                              {copiedCode === exam.exam_code
+                            <span className="text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-mono">
+                              {copiedCode === (exam.exam_password || exam.exam_code)
                                 ? "✓ تم النسخ"
-                                : exam.exam_code}
+                                : exam.exam_password || "—"}
+                            </span>
+                            <span className="text-xs font-bold text-slate-500">
+                              🔑 كود الطالب:
+                            </span>
+                          </div>
+                          {/* كود الامتحان الداخلي */}
+                          <div className="flex items-center gap-2 justify-end">
+                            <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                              {exam.exam_code}
                             </span>
                             <span className="text-xs font-bold text-slate-400">
-                              الكود:
+                              ID:
                             </span>
                           </div>
                         </div>
