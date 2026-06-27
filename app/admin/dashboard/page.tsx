@@ -44,13 +44,15 @@ import {
 
 interface AnswerDetail {
   question_number?: number;
-  question?: string;
+  question?: string;        // stored by API as q.question_text
   question_text?: string;
-  student_answer?: string | string[];
+  student_answer?: string | string[] | null;
   correct_answer?: string | string[];
   correct_answers?: string | string[];
   is_correct?: boolean;
+  is_unanswered?: boolean;
   options?: Record<string, string>;
+  explanation?: string | null;
 }
 
 interface StudentResult {
@@ -181,9 +183,18 @@ function ResultModal({
   result: StudentResult;
   onClose: () => void;
 }) {
-  const answers: AnswerDetail[] = Array.isArray(result.answers)
-    ? result.answers
+  // الإجابات محفوظة في قاعدة البيانات كـ Object مش Array
+  // { "question-uuid": { question, student_answer, ... }, ... }
+  // نحولها لـ Array مرتبة بـ question_number
+  const rawAnswers = result.answers;
+  const answers: AnswerDetail[] = Array.isArray(rawAnswers)
+    ? rawAnswers
+    : rawAnswers && typeof rawAnswers === "object"
+    ? (Object.values(rawAnswers) as AnswerDetail[]).sort(
+        (a, b) => (a.question_number || 0) - (b.question_number || 0)
+      )
     : [];
+
   const dateStr = result.created_at || result.submitted_at || "";
 
   const optionLabels: Record<string, string> = {
